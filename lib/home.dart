@@ -1,6 +1,7 @@
 
 import 'package:firebase_notification_by_asifyaj/notification_services.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,12 +18,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     // TODO: implement initState
+
+
     notificationServices.requestNotificationPermission();
-    notificationServices.firebaseInit();
+    notificationServices.firebaseInit(context);
+    notificationServices.setInteractMessage(context);
    // notificationServices.isTokenRefresh();
     notificationServices.getDeviceToken().then((value) {
-      print("device token : $value");
+      if (kDebugMode) {
+        print("device token : $value");
+      }
     });
+
     super.initState();
   }
   @override

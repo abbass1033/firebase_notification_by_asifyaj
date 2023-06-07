@@ -1,11 +1,14 @@
 
-
 import 'dart:math';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_notification_by_asifyaj/messages_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'dart:io' as IO;
 
 class NotificationServices {
 
@@ -15,51 +18,76 @@ class NotificationServices {
 
 
   void initialLocalNotification(BuildContext context , RemoteMessage message)async{
-    var androidInitializeMessageSetting  = const AndroidInitializationSettings("@mipmap/ic_launchar");
+    var androidInitializeMessageSetting  = const AndroidInitializationSettings("@mipmap/ic_launcher");
 
-    var iosInitializeMessageSetting = const  DarwinInitializationSettings();
+    var iosInitializeMessageSetting = const  DarwinInitializationSettings(
+        requestAlertPermission:  true,
+        requestBadgePermission: true,
+        requestCriticalPermission: true,
+        requestSoundPermission: true
+    );
 
     var initializeSetting = InitializationSettings(
         android: androidInitializeMessageSetting,
-        iOS: iosInitializeMessageSetting
+        iOS: iosInitializeMessageSetting,
     );
 
     await _flutterLocalNotificationsPlugin.initialize(initializeSetting ,
-    onDidReceiveNotificationResponse: (payLoad){
 
+    onDidReceiveNotificationResponse: (payLoad){
+        handleMessages(context , message);
     }
     );
 
   }
 
-  void firebaseInit()async{
-    FirebaseMessaging.onMessage.listen((message) async{
 
-      showNotification(message);
-      print("firebase message : ${message.notification?.title.toString()}");
-      print("firebase message : ${message.notification?.body.toString()}");
+  void firebaseInit(BuildContext context)async{
+    FirebaseMessaging.onMessage.listen((message) async {
+      if (IO.Platform.isAndroid) {
+        initialLocalNotification(context, message);
+        showNotification(message);
+      }
+      else {
+        showNotification(message);
+      }
     });
+
+
   }
+
 
 
   Future<void> showNotification(RemoteMessage message)async{
     
     AndroidNotificationChannel channel = AndroidNotificationChannel(
-        Random.secure().nextInt(1000).toString(),
+        Random.secure().nextInt(1000000).toString(),
         "high important notification",
-    importance: Importance.max
+    importance: Importance.max,
+      playSound: true,
+
 
     );
 
     AndroidNotificationDetails androidNotificationDetails = AndroidNotificationDetails(
-
-        channel.id.toString(),
+      "pushnotificationapp",
         channel.name.toString(),
-        channelDescription: "Your channel description",
+        channelDescription: "your channel description",
+        icon: '@mipmap/ic_launcher',
+        playSound: true,
         importance: Importance.max,
         priority: Priority.high,
-        ticker: "ticker"
+        //sound: RawResourceAndroidNotificationSound('notification'),
+        ticker: "ticker",
+          enableLights: true,
+      actions: [
+         AndroidNotificationAction('Mark', "Marked" ,),
+        AndroidNotificationAction('Mark', "UnMarked", ),
+        AndroidNotificationAction('Mark', "Cancel", ),
+      ]
     );
+
+
 
     DarwinNotificationDetails darwinNotificationDetails = const DarwinNotificationDetails(
       presentAlert: true,
@@ -67,22 +95,41 @@ class NotificationServices {
       presentSound: true
     );
 
-    NotificationDetails notificationDetails = NotificationDetails(
-      android: androidNotificationDetails,
-      iOS: darwinNotificationDetails
+
+
+    NotificationDetails notificationDetails  = NotificationDetails(
+        android: androidNotificationDetails,
+        iOS: darwinNotificationDetails
     );
+    final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    DateTime scheduleDate = DateTime.now().add(const Duration(seconds: 5));
+    await _flutterLocalNotificationsPlugin.zonedSchedule(
+        id,
+        message.notification?.title.toString(),
+        message.notification?.body.toString(),
+        tz.TZDateTime.from(scheduleDate, tz.local),
+        notificationDetails ,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.wallClockTime,
+        androidAllowWhileIdle: true,
+        payload: "notification-payload"
+    );
+
 
 
     Future.delayed(Duration.zero , (){
       _flutterLocalNotificationsPlugin.show(
-          0,
+          id,
           message.notification?.title.toString(),
           message.notification?.body.toString(),
-          notificationDetails
+          notificationDetails,
+        payload: message.data['_id'],
       );
     }
     );
+
+    _flutterLocalNotificationsPlugin.cancel(id);
   }
+
 
 
   void requestNotificationPermission()async{
@@ -122,11 +169,39 @@ class NotificationServices {
 
 
 
+
   //refresh token
   void isTokenRefresh()async{
   messaging.onTokenRefresh.listen((event) {
       event.toString();
   });
+  }
+
+  // when app is in terminated or in background
+  void setInteractMessage(BuildContext context)async{
+    RemoteMessage? initMessage = await FirebaseMessaging.instance.getInitialMessage();
+
+    if(initMessage != null){
+      handleMessages(context, initMessage);
+    }
+
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+     handleMessages(context, message);
+    },
+
+    );
+    }
+
+  void handleMessages(BuildContext context, RemoteMessage message , ){
+
+    if(message.data["type"] == "abas")
+    {
+      Navigator.push(context, MaterialPageRoute(builder: (context)=> MessagesScreen(
+        id : message.data["id"]
+      )));
+    }else{
+      print("gsdgsad");
+    }
   }
 
 }
